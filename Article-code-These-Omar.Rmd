@@ -1,0 +1,848 @@
+---
+title: "Article-code"
+output: html_document
+date: '2023-01-22'
+------------
+
+#Update packages:
+```{r}
+install.packages("libstableR")
+install.packages("libstableR")
+install.packages("cubature")
+install.packages("alphastable")
+install.packages("invgamma")
+install.packages("LaplacesDemon")
+install.packages("libstableR")
+install.packages("libstable4u")
+library("lubridate")
+library("magrittr")
+library("mltest")
+library(evmix)
+library(nprobust)
+library(BNPdensity)
+```
+#LOGARITHMIC MOMENTS METHODS
+#Ici on estime l'esposant caractéristique, l'asymmetrie et la dispersion:
+#On utilise les étapes de l'article de Kuruoglu:
+```{r}
+set.seed(1235)
+X=stabledist::rstable(1200,1.9,0.5,1,3,pm=1)
+# On estime alpha:
+X_2k=X[2*(1:600)]
+X_2k_1=X[2*(1:600)-1]
+X_k_S = log(abs(X_2k - X_2k_1))
+L_2_S=var(X_k_S)
+al=(L_2_S/(pi^2 /6) -0.5)**(-0.5)
+
+#On estime beta:
+X_3k=X[3*(1:400)]
+X_3k_1=X[3*(1:400)-1]
+X_3k_2=X[3*(1:400)-2]
+X_k_C=log(abs(X_3k + X_3k_1 -2*X_3k_2))
+L_2_C=var(X_k_C)
+theta_abs=(((pi**2)/12 - L_2_C)*(al**2) + (pi**2)/6)**(0.5)
+beta=(tan(theta_abs)/tan(al*pi/2))* (2+2**al)/(2-2**al)
+#On estime l'echelle:
+L_1=mean(X_k_C)
+gamma=cos(theta_abs)*exp((L_1+0.57721566)*al -0.57721566)*(1/(2+2**al))
+print(paste("alpha=",al,"beta=",beta,"gamma=",gamma,"omega=",mean(X)))
+```
+
+#Estimators of characteristic function method:
+#Ici on estime les quatre parametres de la loi alpha-stable pour la parametrisation 0:
+#Pour l'initialisation: on utilise la methode de McCulloch, avec la commande
+#stable_fit_init
+```{r}
+#Fonction caracteristique empirique
+ecf.fn <- function(x,u) {
+  g <- rep(0.0,length(u))
+  h <- rep(0.0,length(u))
+  for (i in 1:length(x)) {
+    for (j in 1:length(u)) {
+      g[j] <- g[j]+cos(u[j]*x[i])
+      h[j] <- h[j]+sin(u[j]*x[i])
+    }
+  }
+  g <- g/length(x)
+  h <- h/length(x)
+  g <- pmax(exp(-2),g)
+  #have shown that set the limitation improve the estimation.
+  yr <- sqrt(g^2+h^2)
+  yi <- atan2(h,g)
+  
+  return(list("yr" = yr,"yi" = yi))
+}
+#Estimation par noyau gaussien:
+N_gaussien<-function(z){
+  return((1/sqrt(2*pi))*exp(-0.5*z^2))
+}
+Re<-function(r,u,x,bn){
+  cos(u*r)*N_gaussien((r-x)/bn)
+}
+Int_Re<-function(u,x,bn){
+  integrate(Re,lower=-Inf,upper=Inf,u=u,x=x,bn=bn,subdivisions = 100)$value
+}
+Im<-function(r,u,x,bn){
+  sin(u*r)*N_gaussien((r-x)/bn)
+}
+Int_Im<-function(u,x,bn){
+  integrate(Im,lower=-Inf,upper=Inf,u=u,x=x,bn=bn,subdivisions = 100)$value
+}
+
+ecf.fn1 <- function(x,u) {
+  g <- rep(0.0,length(u))
+  h <- rep(0.0,length(u))
+  bn=bw.nrd0(x)
+  for (i in 1:length(x)) {
+    for (j in 1:length(u)) {
+      g[j] <- g[j]+Int_Re(u[j],x[i],bn)
+      h[j] <- h[j]+Int_Im(u[j],x[i],bn)
+    }
+  }
+  g <- g/(length(x)*bn)
+  h <- h/(length(x)*bn)
+  yr <- sqrt(g^2+h^2)
+  yi <- atan2(h,g)
+  
+  return(list("yr" = yr,"yi" = yi))
+}
+
+eta0 <- function(u, alpha, gamma, eps=0.05){
+  if( abs(alpha-1) < eps){
+    y <- (2/pi)*u*log(gamma*abs(u))
+    y[u==0] <- 0.0
+  } else {
+    y <- tan(pi*alpha/2)*sign(u)*((abs(gamma*u)-abs(gamma*u)^alpha)/(gamma^alpha))
+  }
+  return(y)
+}
+
+CDF<-function(x,u){
+  gamma0=stable_fit_init(x)[3]
+  delta0=stable_fit_init(x)[4]
+  x=(x-delta0)/gamma0
+  y1 <- ecf.fn(x,u)[[1]]
+  z1 <- log(-log(y1))
+  v1 <- log(abs(u))
+  a1 <- lm(z1~v1)
+  alpha1 <- a1$coef[2]
+  if (alpha1>= 1){
+    x1<- ecf.fn1(x,u)
+    y1 <- x1[[1]]
+    z1 <- log(-log(y1))
+    v1 <- log(abs(u))
+    a1 <- lm(z1~v1)
+    alpha1 <- a1$coef[2]
+    if (alpha1>2){alpha1=2}
+    if (alpha1<0){alpha1=0.1}
+    temp <- a1$coef[1]
+    gamma1 <- exp(temp/alpha1)
+    #y3 <- x1[[2]]
+    #v3 <- -gamma1^alpha1*eta0(u,alpha1,gamma1)
+    #a3 <- lm(y3~0+v3+u)
+    #beta1 <- a3$coef[1]
+    #delta1<-a3$coef[2]
+    #if (beta1>1){beta1=1}
+    #if (beta1< -1){beta1=-1}
+  }
+  if (alpha1<1){
+    temp <- a1$coef[1]
+    gamma1 <- exp(temp/alpha1)
+    y3 <- ecf.fn(x,u)[[2]]
+    v3 <- -gamma1^alpha1*eta0(u,alpha1,gamma1)
+    a3 <- lm(y3~0+v3+u)
+    beta1 <- a3$coef[1]
+    delta1<-a3$coef[2]
+    if (beta1>1){beta1=1}
+    if (beta1< -1){beta1=-1}
+  }
+  y3 <- ecf.fn(x,u)[[2]]
+  v3 <- -gamma1^alpha1*eta0(u,alpha1,gamma1)
+  a3 <- lm(y3~0+v3+u)
+  beta1 <- a3$coef[1]
+  delta1<-a3$coef[2]
+  if (beta1>1){beta1=1}
+  if (beta1< -1){beta1=-1}
+  
+  return(list(alpha=alpha1,beta=beta1,gamma=gamma1*gamma0,delta=delta1*gamma0+delta0))
+}
+```
+
+#On teste notre fonction CDF qui résume la methode ci-dessus sur des données
+#simulés:
+
+```{r}
+u1=seq(0.1,1,length=10)
+set.seed(1234)
+X1=stabledist::rstable(2000,1.6,-0.8,5,12,pm=0)
+#X1=stabledist::rstable(2000,0.8,0.8,3,-12,pm=0)
+CDF(X1,u1)
+```
+#Maximum likelihood method première partie:
+#Ici, on utilise la commande optim pour maximiser la log-vraisemblance:
+```{r}
+L_stable<-function(param,obs){
+  a1=param[1]
+  b1=param[2]
+  d1=param[3]
+  o1=param[4]
+  -sum(log(stable_pdf(x=obs,pars=c(a1,b1,d1,o1))))
+}
+Max_vrai<-function(x){
+  tryCatch(
+    {
+      E_stable=optim(stable_fit_init(x),L_stable,obs=x)
+      alpha=E_stable$par[1]
+      beta=E_stable$par[2]
+      gamma=E_stable$par[3]
+      delta=E_stable$par[4]
+    },
+    error=function(cond){
+      invisible()
+    }
+  )
+  
+  return(list(alpha=alpha,beta=beta,gamma=gamma,delta=delta))
+}
+
+```
+#On teste notre methode sur les données simulées
+```{r}
+set.seed(1234)
+X1=stabledist::rstable(2000,1.6,-0.8,5,12,pm=0)
+#X1=stabledist::rstable(2000,0.8,0.8,3,-12,pm=0)
+Max_vrai(X1)
+```
+#Maximum de vraisemblance deuxième partie:
+#Ici, on utilise les scores vu les dérivées partielles de la densité par rapport
+#à chaque parametre dépends de ces fonctions spéciales:
+```{r}
+g_1_plus_alpha_tild<-function(r,x){
+  sin(((x-omega)/delta)*r - beta*tan(pi*alpha/2)*(r**alpha) )*(r**alpha) * exp(-(r**alpha))
+}
+
+area1<-function(x){integrate(g_1_plus_alpha_tild,lower=0,upper=Inf,subdivisions = 10000,x=x)$value}
+int_g_1_plus_alpha_tild <- Vectorize(area1)
+
+
+h_1_plus_alpha_tild<-function(r,x){
+  sin(((x-omega)/delta) * r -beta*tan(pi*alpha/2)*(r**alpha))*(log(r))*(r**alpha)*exp(-(r**alpha))
+}
+area2<-function(x){integrate(h_1_plus_alpha_tild,lower=0,upper=Inf,x=x,subdivisions=10000)$value}
+int_h_1_plus_alpha_tild<- Vectorize(area2)
+
+h_1_plus_alpha<-function(r,x){
+  cos(((x-omega)/delta) * r -beta*tan(pi*alpha/2)*(r**alpha))*(log(r))*(r**alpha)*exp(-(r**alpha))
+}
+area3<-function(x){integrate(h_1_plus_alpha,lower=0,upper=Inf,x=x,subdivisions = 10000)$value}
+int_h_1_plus_alpha<-Vectorize(area3)
+
+
+g_1<-function(r,x){
+  cos(((x-omega)/delta) *r - beta*tan(pi*alpha/2)*(r**alpha)) * exp(-(r**alpha))
+}
+
+area4<-function(x){integrate(g_1,lower=0,upper=Inf,x=x,subdivisions = 10000)$value}
+int_g_1<-Vectorize(area4)
+
+
+g_1_tild<-function(r,x){
+  sin(((x-omega)/delta)*r - beta*tan(pi*alpha/2)*(r**alpha)) * exp(-(r**alpha))
+}
+area5<-function(x){integrate(g_1_tild,lower=0,upper=Inf,x=x,subdivisions = 10000)$value}
+int_g_1_tild<-Vectorize(area5)
+
+
+g_2_tild<-function(r,x){
+  sin(((x-omega)/delta)*r - beta*tan(pi*alpha/2)*(r**alpha) )* r * exp(-(r**alpha))
+}
+area6<-function(x){integrate(g_2_tild,lower=0,upper=Inf,x=x,subdivisions = 10000)$value}
+int_g_2_tild<-Vectorize(area6)
+```
+
+#Maintenant, on utilise la méthode False-Position pour trouver la racine de la
+#dérivé de la log-vraisemblance par rapport à chaque paramètres:
+#On applique directement sur les données simulés:
+```{r}
+set.seed(1234)
+X1=stabledist::rstable(2000,1.6,-0.8,5,12,pm=1)
+#X1=stabledist::rstable(2000,0.8,0.8,3,-12,pm=1)
+x=X1
+E1=stable_fit_init(X1,parametrization = 1)
+alpha1=E1[1]
+beta1=E1[2]
+delta1=E1[3]
+omega1=E1[4]
+
+L_alpha=c(alpha1-0.1,alpha1+0.1)
+L_beta=c(beta1-0.1,beta1+0.1)
+L_delta=c(delta1-0.1,delta1+0.1)
+L_omega=c(omega1-0.5,omega1+0.5)
+
+#On estime alpha
+alpha=L_alpha[length(L_alpha)]
+beta=L_beta[length(L_beta)]
+delta=L_delta[length(L_delta)]
+omega=L_omega[length(L_omega)]
+tryCatch(
+  {
+    grad_f_n=(1/(pi*delta))*((pi*beta/(2*(cos(pi*alpha/2)**2))) * int_g_1_plus_alpha_tild(x)
+                         +beta*tan(pi*alpha/2) * int_h_1_plus_alpha_tild(x) - int_h_1_plus_alpha(x))
+f_n=sum(grad_f_n)/sum(stable_pdf(x,pars=c(alpha,beta,delta,omega),parametrization = 1))
+
+alpha=L_alpha[length(L_alpha)-1]
+beta=L_beta[length(L_beta)-1]
+delta=L_delta[length(L_delta)-1]
+omega=L_omega[length(L_omega)-1]
+grad_f_n_1=(1/(pi*delta))*((pi*beta/(2*(cos(pi*alpha/2)**2))) * int_g_1_plus_alpha_tild(x)
+                           +beta*tan(pi*alpha/2) * int_h_1_plus_alpha_tild(x) - int_h_1_plus_alpha(x))
+f_n_1=sum(grad_f_n_1)/sum(stable_pdf(x,pars=c(alpha,beta,delta,omega),parametrization = 1))
+a_n=(f_n*L_alpha[length(L_alpha)-1]-f_n_1*L_alpha[length(L_alpha)])/(f_n-f_n_1)
+L_alpha<-c(L_alpha,a_n)
+
+#On estime beta
+alpha=L_alpha[length(L_alpha)-1]
+beta=L_beta[length(L_beta)]
+delta=L_delta[length(L_delta)]
+omega=L_omega[length(L_omega)]
+grad_f_n=(tan(pi*alpha/2)/(pi*delta)) * int_g_1_plus_alpha_tild(x)
+f_n=sum(grad_f_n)/sum(stable_pdf(x,pars=c(alpha,beta,delta,omega),parametrization = 1))
+
+alpha=L_alpha[length(L_alpha)-2]
+beta=L_beta[length(L_beta)-1]
+delta=L_delta[length(L_delta)-1]
+omega=L_omega[length(L_omega)-1]
+grad_f_n_1=(tan(pi*alpha/2)/(pi*delta)) * int_g_1_plus_alpha_tild(x)
+f_n_1=sum(grad_f_n_1)/sum(stable_pdf(x,pars=c(alpha,beta,delta,omega),parametrization = 1))
+b_n=(f_n*L_beta[length(L_beta)-1]-f_n_1*L_beta[length(L_beta)])/(f_n-f_n_1)
+L_beta<-c(L_beta,b_n)
+
+#On estime delta
+alpha=L_alpha[length(L_alpha)-1]
+beta=L_beta[length(L_beta)-1]
+delta=L_delta[length(L_delta)]
+omega=L_omega[length(L_omega)]
+grad_f_n=-(1/(pi*(delta)**2))*int_g_1(x)+((x-omega)/(pi*(delta)**3))*int_g_2_tild(x)
+f_n=sum(grad_f_n)/sum(stable_pdf(x,pars=c(alpha,beta,delta,omega),parametrization = 1))
+
+alpha=L_alpha[length(L_alpha)-2]
+beta=L_beta[length(L_beta)-2]
+delta=L_delta[length(L_delta)-1]
+omega=L_omega[length(L_omega)-1]
+grad_f_n_1=-(1/(pi*(delta)**2))*int_g_1(x)+((x-omega)/(pi*(delta)**3))*int_g_2_tild(x)
+f_n_1=sum(grad_f_n_1)/sum(stable_pdf(x,pars=c(alpha,beta,delta,omega),parametrization = 1))
+d_n=(f_n*L_delta[length(L_delta)-1]-f_n_1*L_delta[length(L_delta)])/(f_n-f_n_1)
+L_delta<-c(L_delta,d_n)
+
+#On estime omega
+alpha=L_alpha[length(L_alpha)-1]
+beta=L_beta[length(L_beta)-1]
+delta=L_delta[length(L_delta)-1]
+omega=L_omega[length(L_omega)]
+grad_f_n=(1/(pi*(delta)**2))*int_g_2_tild(x)
+f_n=sum(grad_f_n)/sum(stable_pdf(x,pars=c(alpha,beta,delta,omega),parametrization = 1))
+
+alpha=L_alpha[length(L_alpha)-2]
+beta=L_beta[length(L_beta)-2]
+delta=L_delta[length(L_delta)-2]
+omega=L_omega[length(L_omega)-1]
+grad_f_n_1=(1/(pi*(delta)**2))*int_g_2_tild(x)
+f_n_1=sum(grad_f_n_1)/sum(stable_pdf(x,pars=c(alpha,beta,delta,omega),parametrization = 1))
+o_n=(f_n*L_omega[length(L_omega)-1]-f_n_1*L_omega[length(L_omega)])/(f_n-f_n_1)
+L_omega<-c(L_omega,o_n)
+  },
+ error=function(cond){
+   invisible()
+ }
+)
+
+print(paste("alpha=",a_n,"beta=",b_n,"gamma=",d_n,"omega=",o_n))
+ 
+```
+#Maintenant, on passe à la partie mélange:
+#On commence par présenter les données simulées:
+```{r}
+w.true     = 0.6 
+alpha1.true    = 1.2
+beta1.true = 0.5   
+delta1.true=1 
+omega1.true=-4.25
+alpha2.true=1.2
+#beta2.true=0
+beta2.true=-0.5
+delta2.true=0.5
+omega2.true=0.3
+alpha.true=c(alpha1.true,alpha2.true)
+beta.true=c(beta1.true,beta2.true)
+delta.true=c(delta1.true,delta2.true)
+omega.true=c(omega1.true,omega2.true)
+
+xx.true = seq(-8,11,length=200)
+yy.true = w.true*stable_pdf(xx.true,pars=c(alpha1.true,beta1.true,delta1.true,omega1.true)) + 
+  (1-w.true)*stable_pdf(xx.true,pars=c(alpha2.true,beta2.true,delta2.true,omega2.true)) 
+plot(xx.true, yy.true, type="l", xlab="x", ylab="True density", lwd=2)
+
+set.seed(123)
+oo=sample(1:2,1000,replace=T,prob=c(w.true,1-w.true))
+
+lok=rep(1,1000)
+for (i in 1:1000){
+  lok[i]=stabledist::rstable(1,alpha = alpha.true[oo[i]],beta = beta.true[oo[i]],gamma=delta.true[oo[i]],delta=omega.true[oo[i]],pm=0)
+}
+
+```
+#On applique ECF sur les données simulées:
+```{r}
+CDF<-function(x,u){
+  gamma0=stable_fit_init(x)[3]
+  delta0=stable_fit_init(x)[4]
+  x=(x-delta0)/gamma0
+  y1 <- ecf.fn(x,u)[[1]]
+  z1 <- log(-log(y1))
+  v1 <- log(abs(u))
+  a1 <- lm(z1~v1)
+  alpha1 <- a1$coef[2]
+  if (alpha1>2){alpha1=2}
+  if (alpha1<0){alpha1=0.1}  
+  temp <- a1$coef[1]
+  gamma1 <- exp(temp/alpha1)
+  y3 <- ecf.fn(x,u)[[2]]
+  v3 <- -gamma1^alpha1*eta0(u,alpha1,gamma1)
+  a3 <- lm(y3~0+v3+u)
+  beta1 <- a3$coef[1]
+  delta1<-a3$coef[2]
+  if (beta1>1){beta1=1}
+  if (beta1< -1){beta1=-1}
+  
+  return(list(alpha=alpha1,beta=beta1,gamma=gamma1*gamma0,delta=delta1*gamma0+delta0))
+}
+
+u1=seq(0.1,1,length=10)
+set.seed(123)
+a<-kmeans(lok,centers=2)$cluster
+lok1<-CDF(lok[a==1],u1)
+lok2<-CDF(lok[a==2],u1)
+M_w=c(mean(a==1))
+w=mean(a==1)
+M_alpha1=c(lok1[[1]])
+alpha1=lok1[[1]]
+M_beta1=c(lok1[[2]])
+beta1=lok1[[2]]
+M_delta1=c(lok1[[3]])
+delta1=lok1[[3]]
+M_omega1=c(lok1[[4]])
+omega1=lok1[[4]]
+M_alpha2=c(lok2[[1]])
+alpha2=lok2[[1]]
+M_beta2=c(lok2[[2]])
+beta2=lok2[[2]]
+M_delta2=c(lok2[[3]])
+delta2=lok2[[3]]
+M_omega2=c(lok2[[4]])
+omega2=lok2[[4]]
+#M_cc=array(0, dim=c(100+1, 1000))
+#M_cc[1,]=a
+sw=TRUE
+LV=-Inf
+epsilon=10^(-2.5)
+s=0
+
+while(sw){
+  #cc=M_cc[s,]
+  cc = rep(0,1000)
+  for(i in 1:1000){
+    v = rep(0,2)
+    v[1] = log(w) + log(stable_pdf(lok[i], pars=c(alpha1,beta1,delta1,omega1))) 
+    v[2] = log(1-w) + log(stable_pdf(lok[i], pars=c(alpha2,beta2,delta2,omega2)))  
+    v = exp(v - max(v))/sum(exp(v - max(v)))
+    cc[i] = sample(1:2, 1, replace=TRUE, prob=v)
+  }
+  M_w<-c(M_w,mean(cc==1))
+  w=mean(cc==1)
+  
+  L1<-CDF(lok[cc==1],u1)
+  M_alpha1<-c(M_alpha1,L1[[1]])
+  alpha1<-L1[[1]]
+  M_beta1<-c(M_beta1,L1[[2]])
+  beta1<-L1[[2]]
+  M_delta1<-c(M_delta1,L1[[3]])
+  delta1<-L1[[3]]
+  M_omega1<-c(M_omega1,L1[[4]])
+  omega1<-L1[[4]]
+  
+  
+  L2<-CDF(lok[cc==2],u1)
+  M_alpha2<-c(M_alpha2,L2[[1]])
+  alpha2<-L2[[1]]
+  M_beta2<-c(M_beta2,L2[[2]])
+  beta2<-L2[[2]]
+  M_delta2<-c(M_delta2,L2[[3]])
+  delta2<-L2[[3]]
+  M_omega2<-c(M_omega2,L2[[4]])
+  omega2<-L2[[4]]
+  
+  LVn<- sum(log(w*stable_pdf(lok,pars=c(alpha1,beta1,delta1,omega1))
+               +(1-w)*stable_pdf(lok,pars=c(alpha2,beta2,delta2,omega2))))
+  if(abs(LVn-LV)/abs(LVn)<epsilon){
+    sw=FALSE
+  }
+  LV=LVn
+  s=s+1
+  print(paste("s=",s, "log-V=",LVn))
+}
+
+xx = seq(-8,11,length=200)
+yy = w*stable_pdf(xx,pars=c(alpha1,beta1,delta1,omega1)) + 
+  (1-w)*stable_pdf(xx,pars=c(alpha2,beta2,delta2,omega2)) 
+
+plot(xx, yy, type="l", ylim=c(0, max(c(yy,yy.true))), main="EM-ECF method", lwd=2, col="red", lty=2, xlab="x", ylab="Density")
+lines(xx.true, yy.true, lwd=2)
+legend(6,0.22,c("Truth","Estimate"),col=c("black","red"), lty=c(1,2), bty="n")
+
+```
+
+#On applique EM par maximum de vraisemblance
+```{r}
+set.seed(123)
+a<-kmeans(lok,centers=2)$cluster
+#lok1<-stable_fit_mle(lok[a==1])
+#lok2<-stable_fit_mle(lok[a==2])
+lok1<-Max_vrai(lok[a==1])
+lok2<-Max_vrai(lok[a==2])
+M_w=c(mean(a==1))
+w=mean(a==1)
+M_alpha1=c(lok1[[1]])
+alpha1=lok1[[1]]
+M_beta1=c(lok1[[2]])
+beta1=lok1[[2]]
+M_delta1=c(lok1[[3]])
+delta1=lok1[[3]]
+M_omega1=c(lok1[[4]])
+omega1=lok1[[4]]
+M_alpha2=c(lok2[[1]])
+alpha2=lok2[[1]]
+M_beta2=c(lok2[[2]])
+beta2=lok2[[2]]
+M_delta2=c(lok2[[3]])
+delta2=lok2[[3]]
+M_omega2=c(lok2[[4]])
+omega2=lok2[[4]]
+#M_cc=array(0, dim=c(100+1, 1000))
+#M_cc[1,]=a
+sw=TRUE
+LV=-Inf
+epsilon=10^(-3.5)
+s=0
+
+while(sw){
+  #cc=M_cc[s,]
+  cc = rep(0,1000)
+  for(i in 1:1000){
+    v = rep(0,2)
+    v[1] = log(w) + log(stable_pdf(lok[i], pars=c(alpha1,beta1,delta1,omega1))) 
+    v[2] = log(1-w) + log(stable_pdf(lok[i], pars=c(alpha2,beta2,delta2,omega2)))  
+    v = exp(v - max(v))/sum(exp(v - max(v)))
+    cc[i] = sample(1:2, 1, replace=TRUE, prob=v)
+  }
+  M_w<-c(M_w,mean(cc==1))
+  w=mean(cc==1)
+  
+  #L1<-stable_fit_mle(lok[cc==1])
+  L1<-Max_vrai(lok[cc==1])
+  M_alpha1<-c(M_alpha1,L1[[1]])
+  alpha1<-L1[[1]]
+  M_beta1<-c(M_beta1,L1[[2]])
+  beta1<-L1[[2]]
+  M_delta1<-c(M_delta1,L1[[3]])
+  delta1<-L1[[3]]
+  M_omega1<-c(M_omega1,L1[[4]])
+  omega1<-L1[[4]]
+  
+  
+  #L2<-stable_fit_mle(lok[cc==2])
+  L2<-Max_vrai(lok[cc==2])
+  M_alpha2<-c(M_alpha2,L2[[1]])
+  alpha2<-L2[[1]]
+  M_beta2<-c(M_beta2,L2[[2]])
+  beta2<-L2[[2]]
+  M_delta2<-c(M_delta2,L2[[3]])
+  delta2<-L2[[3]]
+  M_omega2<-c(M_omega2,L2[[4]])
+  omega2<-L2[[4]]
+  
+  LVn<- sum(log(w*stable_pdf(lok,pars=c(alpha1,beta1,delta1,omega1))
+                +(1-w)*stable_pdf(lok,pars=c(alpha2,beta2,delta2,omega2))))
+  if(abs(LVn-LV)/abs(LVn)<epsilon){
+    sw=FALSE
+  }
+  LV=LVn
+  s=s+1
+  print(paste("s=",s,LVn))
+}
+
+xx = seq(-8,11,length=200)
+yy = w*stable_pdf(xx,pars=c(alpha1,beta1,delta1,omega1)) + 
+  (1-w)*stable_pdf(xx,pars=c(alpha2,beta2,delta2,omega2)) 
+
+plot(xx, yy, type="l", ylim=c(0, max(c(yy,yy.true))), main="EM-ML method", lwd=2, col="red", lty=2, xlab="x", ylab="Density")
+lines(xx.true, yy.true, lwd=2)
+legend(6,0.22,c("Truth","Estimate"),col=c("black","red"), lty=c(1,2), bty="n")
+
+```
+#On applique la méthode MCMC, ci-dessous:
+```{r}
+u1=seq(0.1,1,length=10)
+set.seed(123)
+a<-kmeans(lok,centers=2)$cluster
+lok1<-CDF(lok[a==1],u1)
+lok2<-CDF(lok[a==2],u1)
+M2_w1=c(mean(a==1))
+w1=mean(a==1)
+M2_w2=c(mean(a==2))
+w2=mean(a==2)
+M2_alpha1=c(lok1[[1]])
+alpha1=lok1[[1]]
+M2_beta1=c(lok1[[2]])
+beta1=lok1[[2]]
+M2_delta1=c(lok1[[3]])
+delta1=lok1[[3]]
+M2_omega1=c(lok1[[4]])
+omega1=lok1[[4]]
+M2_alpha2=c(lok2[[1]])
+alpha2=lok2[[1]]
+M2_beta2=c(lok2[[2]])
+beta2=lok2[[2]]
+M2_delta2=c(lok2[[3]])
+delta2=lok2[[3]]
+M2_omega2=c(lok2[[4]])
+omega2=lok2[[4]]
+n=1000
+k=2
+M2_cc=array(0, dim=c(rrr+1, n))
+M2_cc[1,]=a
+
+aa=c(1,1)
+eta=0
+tau=5
+dd=1
+qq=1
+
+
+# Number of iterations of the sampler
+rrr   = 300
+#burn  = 1000
+
+# MCMC iterations
+for(s in 1:rrr){
+  cc=M2_cc[s,]
+  # Sample the weights
+  w = rdirichlet(1, alpha=c(aa[1] + sum(cc==1), aa[2] + sum(cc==2)))
+  w1=w[1]
+  M2_w1<-c(M2_w1,w1)
+  w2=w[2]
+  M2_w2<-c(M2_w2,w2)
+  
+  
+  #Partie metropolis-hasting:
+  
+  logique1=TRUE
+  while (logique1) {
+    alpha1_star=rnorm(1,mean=M2_alpha1[s],sd=0.1)
+    if(alpha1_star>0 & alpha1_star<=2){logique1=FALSE}
+  }
+  logique2=TRUE
+  while (logique2) {
+    alpha2_star=rnorm(1,mean=M2_alpha2[s],sd=0.1)
+    if(alpha2_star>0 & alpha2_star<=2){logique2=FALSE}
+  }
+  logique3=TRUE
+  while (logique3) {
+    beta1_star=rnorm(1,mean=M2_beta1[s],sd=0.1)
+    if (beta1_star<=1 & beta1_star>=-1){logique3=FALSE}
+  }
+  logique4=TRUE
+  while (logique4) {
+    beta2_star=rnorm(1,mean=M2_beta2[s],sd=0.1)
+    if (beta2_star<=1 & beta2_star>=-1){logique4=FALSE}
+  }
+  logique5=TRUE
+  while (logique5) {
+    delta1_star=rnorm(1,mean=M2_delta1[s],sd=0.1)
+    if (delta1_star>0){logique5=FALSE}
+  }
+  logique6=TRUE
+  while (logique6) {
+    delta2_star=rnorm(1,mean=M2_delta2[s],sd=0.1)
+    if (delta2_star>0){logique6=FALSE}
+  }
+  logique7=TRUE
+  while (logique7){
+    omega1_star=rnorm(1,mean=M2_omega1[s],sd=0.1)
+    omega2_star=rnorm(1,mean=M2_omega2[s],sd=0.1)
+    if (omega2_star>omega1_star){logique7=FALSE}
+  }
+
+densite1=(prod((10^1)*stable_pdf(lok[cc==1],pars=c(alpha1_star,beta1_star,delta1_star,omega1_star)))*dinvgamma(delta1_star,dd,qq)*dnorm(omega1_star,eta,tau))/(prod((10^1)*stable_pdf(lok[cc==1],pars=c(M2_alpha1[s],M2_beta1[s],M2_delta1[s],M2_omega1[s])))*dinvgamma(M2_delta1[s],dd,qq)*dnorm(M2_omega1[s],eta,tau))
+  if (runif(1)<densite1){
+    M2_alpha1[s+1]<-alpha1_star
+    M2_beta1[s+1]<-beta1_star
+    M2_delta1[s+1]<-delta1_star
+    M2_omega1[s+1]<-omega1_star
+  }
+  else{
+    M2_alpha1[s+1]<-M2_alpha1[s]
+    M2_beta1[s+1]<-M2_beta1[s]
+    M2_delta1[s+1]<-M2_delta1[s]
+    M2_omega1[s+1]<-M2_omega1[s]
+  }
+  alpha1=M2_alpha1[s+1]
+  beta1=M2_beta1[s+1]
+  delta1=M2_delta1[s+1]
+  omega1=M2_omega1[s+1]
+  
+densite2=(prod((10^1)*stable_pdf(lok[cc==2],pars=c(alpha2_star,beta2_star,delta2_star,omega2_star)))*dinvgamma(delta2_star,dd,qq)*dnorm(omega2_star,eta,tau))/(prod((10^1)*stable_pdf(lok[cc==2],pars=c(M2_alpha2[s],M2_beta2[s],M2_delta2[s],M2_omega2[s])))*dinvgamma(M2_delta2[s],dd,qq)*dnorm(M2_omega2[s],eta,tau))
+if (runif(1)<densite2){
+    M2_alpha2[s+1]<-alpha2_star
+    M2_beta2[s+1]<-beta2_star
+    M2_delta2[s+1]<-delta2_star
+    M2_omega2[s+1]<-omega2_star
+  }
+  else{
+    M2_alpha2[s+1]<-M2_alpha2[s]
+    M2_beta2[s+1]<-M2_beta2[s]
+    M2_delta2[s+1]<-M2_delta2[s]
+    M2_omega2[s+1]<-M2_omega2[s]
+  }
+  alpha2=M2_alpha2[s+1]
+  beta2=M2_beta2[s+1]
+  delta2=M2_delta2[s+1]
+  omega2=M2_omega2[s+1]
+  
+  
+# Sample the indicators
+  cc = rep(0,n)
+  for(i in 1:n){
+    v = rep(0,2)
+    v[1] = log(w1) + log(stable_pdf(lok[i], pars=c(alpha1,beta1,delta1,omega1)))  #Compute the log of the weights
+    v[2] = log(w2) + log(stable_pdf(lok[i], pars=c(alpha2,beta2,delta2,omega2)))  #Compute the log of the weights
+    v = exp(v - max(v))/sum(exp(v - max(v)))
+    cc[i] = sample(1:2, 1, replace=TRUE, prob=v)
+  }
+  M2_cc[s+1,]=cc
+  
+  print(paste('s=', s))
+}
+
+xx = seq(-8,11,length=200)
+yy = mean(M2_w1[20:301])*stable_pdf(xx,pars=c(mean(M2_alpha1[20:301]),mean(M2_beta1[20:301]),mean(M2_delta1[20:301]),mean(M2_omega1[20:301]))) + 
+  (1-mean(M2_w1[20:301]))*stable_pdf(xx,pars=c(mean(M2_alpha2[20:301]),mean(M2_beta2[20:301]),mean(M2_delta2[20:301]),mean(M2_omega2[20:301]))) 
+
+plot(xx, yy, type="l", ylim=c(0, max(c(yy,yy.true))), main="MCMC method", lwd=2, col="red", lty=2, xlab="x", ylab="Density")
+lines(xx.true, yy.true, lwd=2)
+legend(6,0.22,c("Truth","Estimate"),col=c("black","red"), lty=c(1,2), bty="n")
+
+```
+
+#Maintenant, on passe à la partie application sur l'intervalle sérial:
+#On commence par calculer cet intervalle:
+
+```{r}
+data=read.table("DONNEE.csv",sep=";",dec=".",header = T)
+data$x.lb <- strptime(as.character(data$x.lb), "%d/%m/%Y")
+data$x.lb <- format(data$x.lb, "%Y-%m-%d")
+data$x.lb <- time_length(interval(start = ymd("2020-01-01"), end = data$x.lb), unit = "days")
+
+data$x.ub <- strptime(as.character(data$x.ub), "%d/%m/%Y")
+data$x.ub <- format(data$x.ub, "%Y-%m-%d")
+data$x.ub <- time_length(interval(start = ymd("2020-01-01"), end = data$x.ub), unit = "days")
+
+data$y <- strptime(as.character(data$y), "%d/%m/%Y")
+data$y <- format(data$y, "%Y-%m-%d")
+data$y <- time_length(interval(start = ymd("2020-01-01"), end = data$y), unit = "days")
+S=data$y - (data$x.ub + data$x.lb)/2
+data$SI<-S
+hist(S, freq=F,main="Histogramme de l'intervalle sérial")
+```
+#On applique le modèle de mélange sur l'intervalle sérial par EM-ML:
+```{r}
+set.seed(134)
+a<-kmeans(S,centers=2)$cluster
+S1<-stable_fit_mle(S[a==1])
+S2<-stable_fit_mle(S[a==2])
+M_w=c(mean(a==1))
+w=mean(a==1)
+M_alpha1=c(S1[[1]])
+alpha1=S1[[1]]
+M_beta1=c(S1[[2]])
+beta1=S1[[2]]
+M_delta1=c(S1[[3]])
+delta1=S1[[3]]
+M_omega1=c(S1[[4]])
+omega1=S1[[4]]
+M_alpha2=c(S2[[1]])
+alpha2=S2[[1]]
+M_beta2=c(S2[[2]])
+beta2=S2[[2]]
+M_delta2=c(S2[[3]])
+delta2=S2[[3]]
+M_omega2=c(S2[[4]])
+omega2=S2[[4]]
+sw=TRUE
+LV=-Inf
+epsilon=10^(-5)
+s=0
+
+while(sw){
+  cc = rep(0,77)
+  for(i in 1:77){
+    v = rep(0,2)
+    v[1] = log(w) + log(stable_pdf(S[i], pars=c(alpha1,beta1,delta1,omega1)))  
+    v[2] = log(1-w) + log(stable_pdf(S[i], pars=c(alpha2,beta2,delta2,omega2))) 
+    v = exp(v - max(v))/sum(exp(v - max(v)))
+    cc[i] = sample(1:2, 1, replace=TRUE, prob=v)
+  }
+  M_w<-c(M_w,mean(cc==1))
+  w=mean(cc==1)
+  
+  L1<-stable_fit_mle(S[cc==1])
+  M_alpha1<-c(M_alpha1,L1[[1]])
+  alpha1<-L1[[1]]
+  M_beta1<-c(M_beta1,L1[[2]])
+  beta1<-L1[[2]]
+  M_delta1<-c(M_delta1,L1[[3]])
+  delta1<-L1[[3]]
+  M_omega1<-c(M_omega1,L1[[4]])
+  omega1<-L1[[4]]
+  
+  
+  L2<-stable_fit_mle(S[cc==2])
+  M_alpha2<-c(M_alpha2,L2[[1]])
+  alpha2<-L2[[1]]
+  M_beta2<-c(M_beta2,L2[[2]])
+  beta2<-L2[[2]]
+  M_delta2<-c(M_delta2,L2[[3]])
+  delta2<-L2[[3]]
+  M_omega2<-c(M_omega2,L2[[4]])
+  omega2<-L2[[4]]
+  
+  LVn<- sum(log(w*stable_pdf(S,pars=c(alpha1,beta1,delta1,omega1))
+                +(1-w)*stable_pdf(S,pars=c(alpha2,beta2,delta2,omega2))))
+  if(abs(LVn-LV)/abs(LVn)<epsilon){
+    sw=FALSE
+  }
+  LV=LVn
+  s=s+1
+  print(paste("s=",s,LVn))
+}
+
+X1<-function(x,alpha1,beta1,delta1,omega1,alpha2,beta2,delta2,omega2){
+  return(w*stable_pdf(x,pars=c(alpha1,beta1,delta1,omega1))+(1-w)*stable_pdf(x,pars = c(alpha2,beta2,delta2,omega2)))
+}
+
+x=S
+hist(S,freq=F,main="Mixture of alpha-stable for serial interval")
+curve(X1(x,alpha1,beta1,delta1,omega1,alpha2,beta2,delta2,omega2),type="l",add=T,col="red",lwd=2)
+
+
+```
+
