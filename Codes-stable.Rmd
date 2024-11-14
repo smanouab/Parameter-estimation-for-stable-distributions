@@ -22,19 +22,19 @@ library(nprobust)
 library(BNPdensity)
 ```
 #LOGARITHMIC MOMENTS METHODS
-#Ici on estime l'esposant caractéristique, l'asymmetrie et la dispersion:
-#On utilise les étapes de l'article de Kuruoglu:
+#Here we estimate the characteristic esposant, asymmetry and dispersion:
+#We use the steps of Kuruoglu's paper:
 ```{r}
 set.seed(1235)
 X=stabledist::rstable(1200,1.9,0.5,1,3,pm=1)
-# On estime alpha:
+# We estime alpha:
 X_2k=X[2*(1:600)]
 X_2k_1=X[2*(1:600)-1]
 X_k_S = log(abs(X_2k - X_2k_1))
 L_2_S=var(X_k_S)
 al=(L_2_S/(pi^2 /6) -0.5)**(-0.5)
 
-#On estime beta:
+#We estime beta:
 X_3k=X[3*(1:400)]
 X_3k_1=X[3*(1:400)-1]
 X_3k_2=X[3*(1:400)-2]
@@ -42,17 +42,17 @@ X_k_C=log(abs(X_3k + X_3k_1 -2*X_3k_2))
 L_2_C=var(X_k_C)
 theta_abs=(((pi**2)/12 - L_2_C)*(al**2) + (pi**2)/6)**(0.5)
 beta=(tan(theta_abs)/tan(al*pi/2))* (2+2**al)/(2-2**al)
-#On estime l'echelle:
+#We estimate the scale paramter :
 L_1=mean(X_k_C)
 gamma=cos(theta_abs)*exp((L_1+0.57721566)*al -0.57721566)*(1/(2+2**al))
 print(paste("alpha=",al,"beta=",beta,"gamma=",gamma,"omega=",mean(X)))
 ```
 
-#Estimators of characteristic function method:
+#Estimation by characteristic function method:
 #Here we estimate the four parameters of the alpha-stable law for parameterization 0:
 #For initialisation: we use McCulloch's method, with the command #stable_fit_init
 ```{r}
-#Fonction caracteristique empirique
+#Estimation byempiricaal characteristic function
 ecf.fn <- function(x,u) {
   g <- rep(0.0,length(u))
   h <- rep(0.0,length(u))
