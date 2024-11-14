@@ -49,9 +49,8 @@ print(paste("alpha=",al,"beta=",beta,"gamma=",gamma,"omega=",mean(X)))
 ```
 
 #Estimators of characteristic function method:
-#Ici on estime les quatre parametres de la loi alpha-stable pour la parametrisation 0:
-#Pour l'initialisation: on utilise la methode de McCulloch, avec la commande
-#stable_fit_init
+#Here we estimate the four parameters of the alpha-stable law for parameterization 0:
+#For initialisation: we use McCulloch's method, with the command #stable_fit_init
 ```{r}
 #Fonction caracteristique empirique
 ecf.fn <- function(x,u) {
@@ -168,8 +167,8 @@ CDF<-function(x,u){
 }
 ```
 
-#On teste notre fonction CDF qui résume la methode ci-dessus sur des données
-#simulés:
+#We test our CDF function which summarises the above method on data
+#simulutions:
 
 ```{r}
 u1=seq(0.1,1,length=10)
@@ -178,8 +177,8 @@ X1=stabledist::rstable(2000,1.6,-0.8,5,12,pm=0)
 #X1=stabledist::rstable(2000,0.8,0.8,3,-12,pm=0)
 CDF(X1,u1)
 ```
-#Maximum likelihood method première partie:
-#Ici, on utilise la commande optim pour maximiser la log-vraisemblance:
+#Maximum likelihood approximation method :
+#Here we use the optim command to maximise the log-likelihood:
 ```{r}
 L_stable<-function(param,obs){
   a1=param[1]
@@ -206,16 +205,16 @@ Max_vrai<-function(x){
 }
 
 ```
-#On teste notre methode sur les données simulées
+#We test our method on simulated data
 ```{r}
 set.seed(1234)
 X1=stabledist::rstable(2000,1.6,-0.8,5,12,pm=0)
 #X1=stabledist::rstable(2000,0.8,0.8,3,-12,pm=0)
 Max_vrai(X1)
 ```
-#Maximum de vraisemblance deuxième partie:
-#Ici, on utilise les scores vu les dérivées partielles de la densité par rapport
-#à chaque parametre dépends de ces fonctions spéciales:
+# Maximum likelihood approximation method part two:
+#Here, we use the scores given the partial derivatives of the density with respect to each parameter.
+#to each parameter depend on these special functions:
 ```{r}
 g_1_plus_alpha_tild<-function(r,x){
   sin(((x-omega)/delta)*r - beta*tan(pi*alpha/2)*(r**alpha) )*(r**alpha) * exp(-(r**alpha))
@@ -260,9 +259,9 @@ area6<-function(x){integrate(g_2_tild,lower=0,upper=Inf,x=x,subdivisions = 10000
 int_g_2_tild<-Vectorize(area6)
 ```
 
-#Maintenant, on utilise la méthode False-Position pour trouver la racine de la
-#dérivé de la log-vraisemblance par rapport à chaque paramètres:
-#On applique directement sur les données simulés:
+#Now we use the False-Position method to find the root of the log-likelihood.
+#derivative of the log-likelihood with respect to each parameter:
+#Apply directly to the simulated data:
 ```{r}
 set.seed(1234)
 X1=stabledist::rstable(2000,1.6,-0.8,5,12,pm=1)
@@ -279,7 +278,7 @@ L_beta=c(beta1-0.1,beta1+0.1)
 L_delta=c(delta1-0.1,delta1+0.1)
 L_omega=c(omega1-0.5,omega1+0.5)
 
-#On estime alpha
+#We estimate alpha
 alpha=L_alpha[length(L_alpha)]
 beta=L_beta[length(L_beta)]
 delta=L_delta[length(L_delta)]
@@ -300,7 +299,7 @@ f_n_1=sum(grad_f_n_1)/sum(stable_pdf(x,pars=c(alpha,beta,delta,omega),parametriz
 a_n=(f_n*L_alpha[length(L_alpha)-1]-f_n_1*L_alpha[length(L_alpha)])/(f_n-f_n_1)
 L_alpha<-c(L_alpha,a_n)
 
-#On estime beta
+# We estimate  beta
 alpha=L_alpha[length(L_alpha)-1]
 beta=L_beta[length(L_beta)]
 delta=L_delta[length(L_delta)]
@@ -317,7 +316,7 @@ f_n_1=sum(grad_f_n_1)/sum(stable_pdf(x,pars=c(alpha,beta,delta,omega),parametriz
 b_n=(f_n*L_beta[length(L_beta)-1]-f_n_1*L_beta[length(L_beta)])/(f_n-f_n_1)
 L_beta<-c(L_beta,b_n)
 
-#On estime delta
+# We estimate  delta
 alpha=L_alpha[length(L_alpha)-1]
 beta=L_beta[length(L_beta)-1]
 delta=L_delta[length(L_delta)]
@@ -334,7 +333,7 @@ f_n_1=sum(grad_f_n_1)/sum(stable_pdf(x,pars=c(alpha,beta,delta,omega),parametriz
 d_n=(f_n*L_delta[length(L_delta)-1]-f_n_1*L_delta[length(L_delta)])/(f_n-f_n_1)
 L_delta<-c(L_delta,d_n)
 
-#On estime omega
+# We estimate  omega
 alpha=L_alpha[length(L_alpha)-1]
 beta=L_beta[length(L_beta)-1]
 delta=L_delta[length(L_delta)-1]
@@ -359,8 +358,8 @@ L_omega<-c(L_omega,o_n)
 print(paste("alpha=",a_n,"beta=",b_n,"gamma=",d_n,"omega=",o_n))
  
 ```
-#Maintenant, on passe à la partie mélange:
-#On commence par présenter les données simulées:
+#Mixture estimation
+#With simulated data
 ```{r}
 w.true     = 0.6 
 alpha1.true    = 1.2
@@ -391,7 +390,7 @@ for (i in 1:1000){
 }
 
 ```
-#On applique ECF sur les données simulées:
+#ECF is applied to the simulated data:
 ```{r}
 CDF<-function(x,u){
   gamma0=stable_fit_init(x)[3]
@@ -589,7 +588,7 @@ lines(xx.true, yy.true, lwd=2)
 legend(6,0.22,c("Truth","Estimate"),col=c("black","red"), lty=c(1,2), bty="n")
 
 ```
-#On applique la méthode MCMC, ci-dessous:
+# We apply the MCMC method below:
 ```{r}
 u1=seq(0.1,1,length=10)
 set.seed(123)
@@ -643,7 +642,7 @@ for(s in 1:rrr){
   M2_w2<-c(M2_w2,w2)
   
   
-  #Partie metropolis-hasting:
+  #Metropolis-hasting algorithm:
   
   logique1=TRUE
   while (logique1) {
@@ -742,9 +741,8 @@ lines(xx.true, yy.true, lwd=2)
 legend(6,0.22,c("Truth","Estimate"),col=c("black","red"), lty=c(1,2), bty="n")
 
 ```
-
-#Maintenant, on passe à la partie application sur l'intervalle sérial:
-#On commence par calculer cet intervalle:
+#Now we move on to the application part on the serial interval:
+#We start by calculating this interval:
 
 ```{r}
 data=read.table("DONNEE.csv",sep=";",dec=".",header = T)
@@ -763,7 +761,7 @@ S=data$y - (data$x.ub + data$x.lb)/2
 data$SI<-S
 hist(S, freq=F,main="Histogramme de l'intervalle sérial")
 ```
-#On applique le modèle de mélange sur l'intervalle sérial par EM-ML:
+#The mixture model is applied to the serial interval using EM-ML:
 ```{r}
 set.seed(134)
 a<-kmeans(S,centers=2)$cluster
@@ -842,7 +840,6 @@ X1<-function(x,alpha1,beta1,delta1,omega1,alpha2,beta2,delta2,omega2){
 x=S
 hist(S,freq=F,main="Mixture of alpha-stable for serial interval")
 curve(X1(x,alpha1,beta1,delta1,omega1,alpha2,beta2,delta2,omega2),type="l",add=T,col="red",lwd=2)
-
 
 ```
 
