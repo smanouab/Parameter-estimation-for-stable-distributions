@@ -353,7 +353,7 @@ omega.true=c(omega1.true,omega2.true)
 xx.true = seq(-8,11,length=200)
 yy.true = w.true*stable_pdf(xx.true,pars=c(alpha1.true,beta1.true,delta1.true,omega1.true)) + 
   (1-w.true)*stable_pdf(xx.true,pars=c(alpha2.true,beta2.true,delta2.true,omega2.true)) 
-plot(xx.true, yy.true, type="l", xlab="x", ylab="True density", lwd=2)
+plot(xx.tru, yy.true, type="l", xlab="x", ylab="True density", lwd=2)
 
 set.seed(123)
 oo=sample(1:2,1000,replace=T,prob=c(w.true,1-w.true))
@@ -415,20 +415,15 @@ M_omega2=c(lok2[[4]])
 omega2=lok2[[4]]
 #M_cc=array(0, dim=c(100+1, 1000))
 #M_cc[1,]=a
-sw=TRUE
-LV=-Inf
-epsilon=10^(-2.5)
 s=0
 
 while(sw){
   #cc=M_cc[s,]
-  cc = rep(0,1000)
   for(i in 1:1000){
     v = rep(0,2)
     v[1] = log(w) + log(stable_pdf(lok[i], pars=c(alpha1,beta1,delta1,omega1))) 
     v[2] = log(1-w) + log(stable_pdf(lok[i], pars=c(alpha2,beta2,delta2,omega2)))  
-    v = exp(v - max(v))/sum(exp(v - max(v)))
-    cc[i] = sample(1:2, 1, replace=TRUE, prob=v)
+
   }
   M_w<-c(M_w,mean(cc==1))
   w=mean(cc==1)
@@ -463,11 +458,6 @@ while(sw){
   s=s+1
   print(paste("s=",s, "log-V=",LVn))
 }
-
-xx = seq(-8,11,length=200)
-yy = w*stable_pdf(xx,pars=c(alpha1,beta1,delta1,omega1)) + 
-  (1-w)*stable_pdf(xx,pars=c(alpha2,beta2,delta2,omega2)) 
-
 plot(xx, yy, type="l", ylim=c(0, max(c(yy,yy.true))), main="EM-ECF method", lwd=2, col="red", lty=2, xlab="x", ylab="Density")
 lines(xx.true, yy.true, lwd=2)
 legend(6,0.22,c("Truth","Estimate"),col=c("black","red"), lty=c(1,2), bty="n")
@@ -483,14 +473,6 @@ a<-kmeans(lok,centers=2)$cluster
 lok1<-Max_vrai(lok[a==1])
 lok2<-Max_vrai(lok[a==2])
 M_w=c(mean(a==1))
-w=mean(a==1)
-M_alpha1=c(lok1[[1]])
-alpha1=lok1[[1]]
-M_beta1=c(lok1[[2]])
-beta1=lok1[[2]]
-M_delta1=c(lok1[[3]])
-delta1=lok1[[3]]
-M_omega1=c(lok1[[4]])
 omega1=lok1[[4]]
 M_alpha2=c(lok2[[1]])
 alpha2=lok2[[1]]
@@ -512,10 +494,6 @@ while(sw){
   cc = rep(0,1000)
   for(i in 1:1000){
     v = rep(0,2)
-    v[1] = log(w) + log(stable_pdf(lok[i], pars=c(alpha1,beta1,delta1,omega1))) 
-    v[2] = log(1-w) + log(stable_pdf(lok[i], pars=c(alpha2,beta2,delta2,omega2)))  
-    v = exp(v - max(v))/sum(exp(v - max(v)))
-    cc[i] = sample(1:2, 1, replace=TRUE, prob=v)
   }
   M_w<-c(M_w,mean(cc==1))
   w=mean(cc==1)
@@ -525,26 +503,13 @@ while(sw){
   M_alpha1<-c(M_alpha1,L1[[1]])
   alpha1<-L1[[1]]
   M_beta1<-c(M_beta1,L1[[2]])
-  beta1<-L1[[2]]
-  M_delta1<-c(M_delta1,L1[[3]])
-  delta1<-L1[[3]]
-  M_omega1<-c(M_omega1,L1[[4]])
-  omega1<-L1[[4]]
   
   
   #L2<-stable_fit_mle(lok[cc==2])
   L2<-Max_vrai(lok[cc==2])
   M_alpha2<-c(M_alpha2,L2[[1]])
   alpha2<-L2[[1]]
-  M_beta2<-c(M_beta2,L2[[2]])
-  beta2<-L2[[2]]
-  M_delta2<-c(M_delta2,L2[[3]])
-  delta2<-L2[[3]]
-  M_omega2<-c(M_omega2,L2[[4]])
-  omega2<-L2[[4]]
   
-  LVn<- sum(log(w*stable_pdf(lok,pars=c(alpha1,beta1,delta1,omega1))
-                +(1-w)*stable_pdf(lok,pars=c(alpha2,beta2,delta2,omega2))))
   if(abs(LVn-LV)/abs(LVn)<epsilon){
     sw=FALSE
   }
@@ -554,8 +519,7 @@ while(sw){
 }
 
 xx = seq(-8,11,length=200)
-yy = w*stable_pdf(xx,pars=c(alpha1,beta1,delta1,omega1)) + 
-  (1-w)*stable_pdf(xx,pars=c(alpha2,beta2,delta2,omega2)) 
+yy= pars=c(alpha2,beta2,delta2,omega2)) 
 
 plot(xx, yy, type="l", ylim=c(0, max(c(yy,yy.true))), main="EM-ML method", lwd=2, col="red", lty=2, xlab="x", ylab="Density")
 lines(xx.true, yy.true, lwd=2)
@@ -566,13 +530,8 @@ legend(6,0.22,c("Truth","Estimate"),col=c("black","red"), lty=c(1,2), bty="n")
 ```{r}
 u1=seq(0.1,1,length=10)
 set.seed(123)
-a<-kmeans(lok,centers=2)$cluster
 lok1<-CDF(lok[a==1],u1)
 lok2<-CDF(lok[a==2],u1)
-M2_w1=c(mean(a==1))
-w1=mean(a==1)
-M2_w2=c(mean(a==2))
-w2=mean(a==2)
 M2_alpha1=c(lok1[[1]])
 alpha1=lok1[[1]]
 M2_beta1=c(lok1[[2]])
@@ -593,11 +552,6 @@ n=1000
 k=2
 M2_cc=array(0, dim=c(rrr+1, n))
 M2_cc[1,]=a
-
-aa=c(1,1)
-eta=0
-tau=5
-dd=1
 qq=1
 
 
@@ -609,7 +563,7 @@ rrr   = 300
 for(s in 1:rrr){
   cc=M2_cc[s,]
   # Sample the weights
-  w = rdirichlet(1, alpha=c(aa[1] + sum(cc==1), aa[2] + sum(cc==2)))
+  w = tf(1, alpha=c(aa[1] + sum(cc==1), aa[2] + sum(cc==2)))
   w1=w[1]
   M2_w1<-c(M2_w1,w1)
   w2=w[2]
@@ -654,8 +608,6 @@ for(s in 1:rrr){
     omega2_star=rnorm(1,mean=M2_omega2[s],sd=0.1)
     if (omega2_star>omega1_star){logique7=FALSE}
   }
-
-densite1=(prod((10^1)*stable_pdf(lok[cc==1],pars=c(alpha1_star,beta1_star,delta1_star,omega1_star)))*dinvgamma(delta1_star,dd,qq)*dnorm(omega1_star,eta,tau))/(prod((10^1)*stable_pdf(lok[cc==1],pars=c(M2_alpha1[s],M2_beta1[s],M2_delta1[s],M2_omega1[s])))*dinvgamma(M2_delta1[s],dd,qq)*dnorm(M2_omega1[s],eta,tau))
   if (runif(1)<densite1){
     M2_alpha1[s+1]<-alpha1_star
     M2_beta1[s+1]<-beta1_star
@@ -672,9 +624,7 @@ densite1=(prod((10^1)*stable_pdf(lok[cc==1],pars=c(alpha1_star,beta1_star,delta1
   beta1=M2_beta1[s+1]
   delta1=M2_delta1[s+1]
   omega1=M2_omega1[s+1]
-  
-densite2=(prod((10^1)*stable_pdf(lok[cc==2],pars=c(alpha2_star,beta2_star,delta2_star,omega2_star)))*dinvgamma(delta2_star,dd,qq)*dnorm(omega2_star,eta,tau))/(prod((10^1)*stable_pdf(lok[cc==2],pars=c(M2_alpha2[s],M2_beta2[s],M2_delta2[s],M2_omega2[s])))*dinvgamma(M2_delta2[s],dd,qq)*dnorm(M2_omega2[s],eta,tau))
-if (runif(1)<densite2){
+  if (runif(1)<densite2){
     M2_alpha2[s+1]<-alpha2_star
     M2_beta2[s+1]<-beta2_star
     M2_delta2[s+1]<-delta2_star
@@ -696,9 +646,6 @@ if (runif(1)<densite2){
   cc = rep(0,n)
   for(i in 1:n){
     v = rep(0,2)
-    v[1] = log(w1) + log(stable_pdf(lok[i], pars=c(alpha1,beta1,delta1,omega1)))  #Compute the log of the weights
-    v[2] = log(w2) + log(stable_pdf(lok[i], pars=c(alpha2,beta2,delta2,omega2)))  #Compute the log of the weights
-    v = exp(v - max(v))/sum(exp(v - max(v)))
     cc[i] = sample(1:2, 1, replace=TRUE, prob=v)
   }
   M2_cc[s+1,]=cc
@@ -707,9 +654,6 @@ if (runif(1)<densite2){
 }
 
 xx = seq(-8,11,length=200)
-yy = mean(M2_w1[20:301])*stable_pdf(xx,pars=c(mean(M2_alpha1[20:301]),mean(M2_beta1[20:301]),mean(M2_delta1[20:301]),mean(M2_omega1[20:301]))) + 
-  (1-mean(M2_w1[20:301]))*stable_pdf(xx,pars=c(mean(M2_alpha2[20:301]),mean(M2_beta2[20:301]),mean(M2_delta2[20:301]),mean(M2_omega2[20:301]))) 
-
 plot(xx, yy, type="l", ylim=c(0, max(c(yy,yy.true))), main="MCMC method", lwd=2, col="red", lty=2, xlab="x", ylab="Density")
 lines(xx.true, yy.true, lwd=2)
 legend(6,0.22,c("Truth","Estimate"),col=c("black","red"), lty=c(1,2), bty="n")
@@ -768,10 +712,6 @@ while(sw){
   cc = rep(0,77)
   for(i in 1:77){
     v = rep(0,2)
-    v[1] = log(w) + log(stable_pdf(S[i], pars=c(alpha1,beta1,delta1,omega1)))  
-    v[2] = log(1-w) + log(stable_pdf(S[i], pars=c(alpha2,beta2,delta2,omega2))) 
-    v = exp(v - max(v))/sum(exp(v - max(v)))
-    cc[i] = sample(1:2, 1, replace=TRUE, prob=v)
   }
   M_w<-c(M_w,mean(cc==1))
   w=mean(cc==1)
@@ -790,15 +730,6 @@ while(sw){
   L2<-stable_fit_mle(S[cc==2])
   M_alpha2<-c(M_alpha2,L2[[1]])
   alpha2<-L2[[1]]
-  M_beta2<-c(M_beta2,L2[[2]])
-  beta2<-L2[[2]]
-  M_delta2<-c(M_delta2,L2[[3]])
-  delta2<-L2[[3]]
-  M_omega2<-c(M_omega2,L2[[4]])
-  omega2<-L2[[4]]
-  
-  LVn<- sum(log(w*stable_pdf(S,pars=c(alpha1,beta1,delta1,omega1))
-                +(1-w)*stable_pdf(S,pars=c(alpha2,beta2,delta2,omega2))))
   if(abs(LVn-LV)/abs(LVn)<epsilon){
     sw=FALSE
   }
