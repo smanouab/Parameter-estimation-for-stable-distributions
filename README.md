@@ -5,3 +5,5 @@ For more information, please refer to the following:
 
    
 Omar Hajjaji, Solym M. Manou-Abi and Yousri Slaoui (2024). Parameter estimation for stable distributions and their mixture. Journal of Applied Statistics.
+
+
