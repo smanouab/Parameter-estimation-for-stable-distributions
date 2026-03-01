@@ -5,4 +5,5 @@ Some of the implemented methods are described in Hajjaji, O., Manou-Abi, S. M., 
 
 
 💥 https://cran.r-project.org/web/packages/MixStable/index.html
+
 💥 https://pypi.org/project/Mixstable/
