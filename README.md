@@ -4,3 +4,5 @@ We consider parameter estimation for stable distributions and their mixture. We 
 Some of the implemented methods are described in Hajjaji, O., Manou-Abi, S. M., and Slaoui, Y. (2024). Parameter estimation for stable distributions and their mixture. Journal of Applied Statistics <doi:10.1080/02664763.2024.2434627>.
 
 
+💥 https://cran.r-project.org/web/packages/MixStable/index.html
+💥 https://pypi.org/project/Mixstable/
